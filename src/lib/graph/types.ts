@@ -58,6 +58,12 @@ export const TrainSchema = z.object({
     })
     .nullable()
     .default(null),
+  velocity: z.number().default(0),
+  maxVelocity: z.number().default(80),
+  route: z.array(z.string()).default([]),
+  routeIndex: z.number().default(0),
+  waiting: z.boolean().default(false),
+  paused: z.boolean().default(false),
 });
 export type Train = z.infer<typeof TrainSchema>;
 

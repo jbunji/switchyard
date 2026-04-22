@@ -6,9 +6,12 @@ import {
   FileJson,
   Grid3x3,
   Magnet,
+  Pause,
+  Play,
   Redo2,
   RotateCcw,
   Sparkles,
+  TrainFront,
   Undo2,
   Upload,
 } from "lucide-react";
@@ -30,6 +33,11 @@ export function Topbar() {
   const setLayout = useLayoutStore((s) => s.setLayout);
   const resetLayout = useLayoutStore((s) => s.resetLayout);
   const loadDemo = useLayoutStore((s) => s.loadDemo);
+  const loadCity = useLayoutStore((s) => s.loadCity);
+  const simulating = useLayoutStore((s) => s.simulating);
+  const setSimulating = useLayoutStore((s) => s.setSimulating);
+  const simSpeed = useLayoutStore((s) => s.simSpeed);
+  const setSimSpeed = useLayoutStore((s) => s.setSimSpeed);
 
   const rename = (name: string) => {
     setLayout({ ...layout, name, updatedAt: new Date().toISOString() });
@@ -86,6 +94,33 @@ export function Topbar() {
 
       <div className="flex-1" />
 
+      <TopbarButton
+        active={simulating}
+        onClick={() => setSimulating(!simulating)}
+        title={simulating ? "Pause simulation (space)" : "Run simulation (space)"}
+      >
+        {simulating ? <Pause size={16} /> : <Play size={16} />}
+      </TopbarButton>
+      <div className="flex items-center gap-1 px-2 h-8 rounded bg-zinc-900/60">
+        <span className="text-[10px] font-mono text-zinc-500">speed</span>
+        <input
+          type="range"
+          min={0.25}
+          max={3}
+          step={0.25}
+          value={simSpeed}
+          onChange={(e) => setSimSpeed(Number(e.target.value))}
+          className="w-16 accent-amber-400"
+        />
+        <span className="text-[10px] font-mono text-zinc-400 w-8 text-right">{simSpeed.toFixed(2)}x</span>
+      </div>
+
+      <div className="h-6 w-px bg-zinc-800 mx-1" />
+
+      <TopbarButton onClick={loadCity} title="Generate city layout">
+        <TrainFront size={16} />
+        <span className="text-[11px] font-mono ml-1">city</span>
+      </TopbarButton>
       <TopbarButton onClick={loadDemo} title="Load demo layout">
         <span className="text-[11px] font-mono px-1">demo</span>
       </TopbarButton>

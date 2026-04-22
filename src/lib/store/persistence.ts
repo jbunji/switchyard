@@ -8,6 +8,7 @@ const KEY = "switchyard.layout.v1";
 
 export function useAutosave() {
   const layout = useLayoutStore((s) => s.layout);
+  const simulating = useLayoutStore((s) => s.simulating);
   const setLayout = useLayoutStore((s) => s.setLayout);
   const loadedRef = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -29,6 +30,7 @@ export function useAutosave() {
 
   useEffect(() => {
     if (!loadedRef.current) return;
+    if (simulating) return;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       try {
@@ -40,7 +42,7 @@ export function useAutosave() {
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [layout]);
+  }, [layout, simulating]);
 }
 
 export function downloadLayoutJson(layout: Layout) {

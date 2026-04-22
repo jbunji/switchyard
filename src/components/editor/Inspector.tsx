@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { Pause, Play, Plus, Trash2 } from "lucide-react";
 import { useLayoutStore } from "@/lib/store/layout";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +16,8 @@ export function Inspector() {
   const toggleBlockOccupancy = useLayoutStore((s) => s.toggleBlockOccupancy);
   const toggleTurnout = useLayoutStore((s) => s.toggleTurnout);
   const deleteSelection = useLayoutStore((s) => s.deleteSelection);
+  const setTrainVelocity = useLayoutStore((s) => s.setTrainVelocity);
+  const toggleTrainPaused = useLayoutStore((s) => s.toggleTrainPaused);
 
   const selectedNode =
     selection?.kind === "node" ? layout.nodes.find((n) => n.id === selection.id) : null;
@@ -161,6 +163,58 @@ export function Inspector() {
               <Trash2 size={12} />
               Delete
             </button>
+          </div>
+        )}
+
+        {layout.trains.length > 0 && (
+          <div className="p-3 border-b border-zinc-800">
+            <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest mb-2">
+              Trains
+            </div>
+            <div className="space-y-2.5">
+              {layout.trains.map((t) => (
+                <div key={t.id} className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-3 h-2.5 rounded-sm border border-zinc-700"
+                      style={{ background: t.color }}
+                    />
+                    <div className="flex-1 text-[11px] font-mono text-zinc-300 truncate">
+                      {t.road} {t.number}
+                    </div>
+                    {t.waiting && (
+                      <span className="text-[9px] font-mono text-amber-400 uppercase">wait</span>
+                    )}
+                    <button
+                      onClick={() => toggleTrainPaused(t.id)}
+                      className={cn(
+                        "h-5 w-5 rounded flex items-center justify-center",
+                        t.paused
+                          ? "bg-red-500/20 text-red-400"
+                          : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800",
+                      )}
+                      title={t.paused ? "Resume" : "Pause"}
+                    >
+                      {t.paused ? <Play size={10} /> : <Pause size={10} />}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2 pl-5">
+                    <input
+                      type="range"
+                      min={0}
+                      max={t.maxVelocity}
+                      step={5}
+                      value={t.velocity}
+                      onChange={(e) => setTrainVelocity(t.id, Number(e.target.value))}
+                      className="flex-1 accent-amber-400"
+                    />
+                    <span className="text-[9px] font-mono text-zinc-500 w-8 text-right">
+                      {Math.round(t.velocity)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

@@ -3,6 +3,8 @@
 import { create } from "zustand";
 import type { Layout, NodeType, TrackEdge, TrackNode, TurnoutState } from "@/lib/graph/types";
 import { demoLayout } from "@/lib/graph/demo";
+import { generateCity } from "@/lib/graph/generator";
+import { tickSimulation } from "@/lib/graph/simulation";
 import {
   addEdge as addEdgeOp,
   addNode as addNodeOp,
@@ -61,6 +63,8 @@ interface LayoutState {
   gridEnabled: boolean;
   snapEnabled: boolean;
   snapRadius: number;
+  simulating: boolean;
+  simSpeed: number;
   past: Layout[];
   future: Layout[];
   setLayout: (layout: Layout, pushHistory?: boolean) => void;
@@ -91,6 +95,12 @@ interface LayoutState {
   redo: () => void;
   resetLayout: () => void;
   loadDemo: () => void;
+  loadCity: () => void;
+  setSimulating: (v: boolean) => void;
+  setSimSpeed: (v: number) => void;
+  tickSim: (dt: number) => void;
+  setTrainVelocity: (trainId: string, velocity: number) => void;
+  toggleTrainPaused: (trainId: string) => void;
 }
 
 const HISTORY_LIMIT = 100;
@@ -120,6 +130,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   gridEnabled: true,
   snapEnabled: true,
   snapRadius: 18,
+  simulating: false,
+  simSpeed: 1,
   past: [],
   future: [],
 
@@ -344,8 +356,58 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     set((s) => ({
       layout: demoLayout(),
       selection: null,
+      simulating: false,
       past: pushPast(s.past, s.layout),
       future: [],
+    })),
+
+  loadCity: () =>
+    set((s) => ({
+      layout: generateCity(),
+      selection: null,
+      simulating: true,
+      viewport: { x: 80, y: 40, scale: 0.5 },
+      past: pushPast(s.past, s.layout),
+      future: [],
+    })),
+
+  setSimulating: (v) => set({ simulating: v }),
+  setSimSpeed: (simSpeed) => set({ simSpeed }),
+
+  tickSim: (dt) =>
+    set((s) => {
+      const step = tickSimulation(s.layout, dt);
+      const blocks = s.layout.blocks.map((b) => ({
+        ...b,
+        occupied: step.blocksOccupied.has(b.id),
+      }));
+      return {
+        layout: {
+          ...s.layout,
+          trains: step.trains,
+          blocks,
+        },
+      };
+    }),
+
+  setTrainVelocity: (trainId, velocity) =>
+    set((s) => ({
+      layout: {
+        ...s.layout,
+        trains: s.layout.trains.map((t) =>
+          t.id === trainId ? { ...t, velocity } : t,
+        ),
+      },
+    })),
+
+  toggleTrainPaused: (trainId) =>
+    set((s) => ({
+      layout: {
+        ...s.layout,
+        trains: s.layout.trains.map((t) =>
+          t.id === trainId ? { ...t, paused: !t.paused } : t,
+        ),
+      },
     })),
 }));
 

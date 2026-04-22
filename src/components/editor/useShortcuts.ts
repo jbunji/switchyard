@@ -15,6 +15,8 @@ export function useShortcuts() {
   const rotateGhost = useLayoutStore((s) => s.rotateGhost);
   const rotateSelectedNode = useLayoutStore((s) => s.rotateSelectedNode);
   const tool = useLayoutStore((s) => s.tool);
+  const simulating = useLayoutStore((s) => s.simulating);
+  const setSimulating = useLayoutStore((s) => s.setSimulating);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -53,6 +55,12 @@ export function useShortcuts() {
           else if (selection?.kind === "node") rotateSelectedNode(delta);
           return;
         }
+      }
+
+      if (e.key === " ") {
+        e.preventDefault();
+        setSimulating(!simulating);
+        return;
       }
 
       switch (e.key.toLowerCase()) {
@@ -104,5 +112,7 @@ export function useShortcuts() {
     rotateGhost,
     rotateSelectedNode,
     tool,
+    simulating,
+    setSimulating,
   ]);
 }

@@ -7,10 +7,12 @@ import { Toolbar } from "./Toolbar";
 import { Inspector } from "./Inspector";
 import { StatusBar } from "./StatusBar";
 import { useShortcuts } from "./useShortcuts";
+import { useSimulation } from "./useSimulation";
 
 export function Editor() {
   useAutosave();
   useShortcuts();
+  useSimulation();
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">

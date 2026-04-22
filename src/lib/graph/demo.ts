@@ -39,6 +39,12 @@ export function demoLayout(): Layout {
       color: "#f97316",
       length: 3,
       position: { edgeId: "e2", offset: 0.5, direction: "forward" },
+      velocity: 0,
+      maxVelocity: 100,
+      route: [],
+      routeIndex: 0,
+      waiting: false,
+      paused: false,
     },
   ];
 
