@@ -844,13 +844,16 @@ function seedTrains(
     }));
   }
 
-  // Industrial switcher — back-and-forth on industrial detour
-  if (refs.industrialDetourEdges.length > 1) {
-    const fwd = refs.industrialDetourEdges;
+  // Industrial local — continuous loop around the city via the industrial detour.
+  // (Was a back-and-forth switcher, but a through-branch shouldn't reverse —
+  //  a local freight circles the full main taking the industrial path each lap.)
+  if (industrialVariant.length > 1) {
     trains.push(makeTrain({
-      id: "t-ind-switcher", road: "SW", number: "IND-01", color: "#a855f7",
-      velocity: 35, maxVelocity: 70,
-      route: [...fwd, ...[...fwd].reverse()], routeIndex: 0, offset: 0.2,
+      id: "t-ind-local", road: "LOC", number: "IND-01", color: "#a855f7",
+      velocity: 40, maxVelocity: 80,
+      route: industrialVariant,
+      routeIndex: Math.floor(industrialVariant.length * 0.15),
+      offset: 0.2,
     }));
   }
 
