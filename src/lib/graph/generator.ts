@@ -68,6 +68,15 @@ class Gen {
   }
 }
 
+/**
+ * Staggered single-ended ladder yard. Each body stubs out east/west of the
+ * yard, diverging off the lead at a consistent angle so bodies look parallel
+ * and the ladder reads clean.
+ *
+ * Geometry: body i diverges at turnout i, transitions over (i+1)·leadSpan of
+ * X to reach its body-Y = y + (i+1)·spacing, then runs horizontal for
+ * trackLength. That keeps all diverging edges at a uniform angle.
+ */
 function ladderYard(
   g: Gen,
   opts: {
@@ -81,7 +90,7 @@ function ladderYard(
     facing?: "east" | "west";
     doubleEnded?: boolean;
   },
-): { leadIn: TrackNode; leadOut: TrackNode | null } {
+): { leadIn: TrackNode; leadOut: TrackNode } {
   const {
     x,
     y,
@@ -91,21 +100,16 @@ function ladderYard(
     blockId,
     labelPrefix,
     facing = "east",
-    doubleEnded = true,
   } = opts;
   const dir = facing === "east" ? 1 : -1;
   const turnoutType: NodeType = dir > 0 ? "turnout_right" : "turnout_left";
-  const oppType: NodeType = dir > 0 ? "turnout_left" : "turnout_right";
   const rotation = dir > 0 ? 0 : 180;
-  const oppRotation = dir > 0 ? 180 : 0;
-
   const leadSpan = 55;
-  const transitionLen = 50;
 
-  // ---- WEST LEAD ----
-  const leadIn = g.node("endpoint", x - dir * 40, y, { label: `${labelPrefix} W` });
+  // Lead + turnouts
+  const leadIn = g.node("endpoint", x - dir * 40, y, { label: `${labelPrefix} lead` });
   let prev = leadIn;
-  const westTurnouts: TrackNode[] = [];
+  const turnouts: TrackNode[] = [];
   for (let i = 0; i < trackCount; i++) {
     const tx = x + dir * i * leadSpan;
     const to = g.node(turnoutType, tx, y, {
@@ -113,84 +117,30 @@ function ladderYard(
       label: `${labelPrefix}-${i + 1}`,
     });
     g.edge(prev.id, to.id, blockId);
-    westTurnouts.push(to);
+    turnouts.push(to);
     prev = to;
   }
+  // Cap the lead past the last turnout
+  const leadEnd = g.node("endpoint", x + dir * trackCount * leadSpan, y, {
+    label: `${labelPrefix} end`,
+  });
+  g.edge(prev.id, leadEnd.id, blockId);
 
-  // ---- BODY TRACKS (parallel, stepped) ----
-  const bodyEnds: TrackNode[] = [];
+  // Staggered bodies: body i starts at (2i+1)·leadSpan east of yard origin
   for (let i = 0; i < trackCount; i++) {
     const bodyY = y + (i + 1) * spacing;
-    const tx = x + dir * i * leadSpan;
-    const bodyStartX = tx + dir * transitionLen;
+    const bodyStartX = x + dir * (2 * i + 1) * leadSpan;
     const bodyEndX = bodyStartX + dir * trackLength;
     const bodyStart = g.node("joint", bodyStartX, bodyY);
-    const bodyEnd = g.node("joint", bodyEndX, bodyY);
-    // diverging transition from west turnout down to body start
-    g.edge(westTurnouts[i].id, bodyStart.id, blockId, {
+    const bodyEnd = g.node("endpoint", bodyEndX, bodyY);
+    g.edge(turnouts[i].id, bodyStart.id, blockId, {
       branch: "diverging",
-      curve: dir * 18,
+      curve: dir * 22,
     });
-    // body running horizontal
     g.edge(bodyStart.id, bodyEnd.id, blockId);
-    bodyEnds.push(bodyEnd);
   }
 
-  if (doubleEnded) {
-    // Easternmost body end is bodyEnds[trackCount - 1] since bodies step east
-    const eastmostEndX = bodyEnds[trackCount - 1].x;
-    const eastLeadStartX = eastmostEndX + dir * transitionLen;
-
-    // Place east turnouts all on the east lead at y=y.
-    // TE[0] (longest transition → westernmost body end) goes farthest east on the lead.
-    // TE[n-1] (shortest transition → easternmost body end) sits closest to the bodies.
-    const eastTurnouts: TrackNode[] = [];
-    for (let i = 0; i < trackCount; i++) {
-      const posIdx = trackCount - 1 - i;
-      const teX = eastLeadStartX + dir * posIdx * leadSpan;
-      const te = g.node(oppType, teX, y, {
-        rotation: oppRotation,
-        label: `${labelPrefix}-${i + 1}E`,
-      });
-      eastTurnouts.push(te);
-    }
-
-    const leadEnd = g.node(
-      "endpoint",
-      eastLeadStartX + dir * trackCount * leadSpan,
-      y,
-      { label: `${labelPrefix} E` },
-    );
-
-    // east lead connected: leadEnd -> TE[0] -> TE[1] -> ... -> TE[n-1]
-    let oppPrev: TrackNode = leadEnd;
-    for (let i = 0; i < trackCount; i++) {
-      g.edge(oppPrev.id, eastTurnouts[i].id, blockId);
-      oppPrev = eastTurnouts[i];
-    }
-
-    // each east turnout returns (diverging) down to its body east endpoint
-    for (let i = 0; i < trackCount; i++) {
-      g.edge(eastTurnouts[i].id, bodyEnds[i].id, blockId, {
-        branch: "diverging",
-        curve: -dir * 18,
-      });
-    }
-
-    return { leadIn, leadOut: leadEnd };
-  }
-
-  // Single-ended: close each body with a bumper
-  for (let i = 0; i < trackCount; i++) {
-    // bodyEnds[i] already exists; just cap it visually with an endpoint marker
-    const end = g.node(
-      "endpoint",
-      bodyEnds[i].x + dir * 16,
-      bodyEnds[i].y,
-    );
-    g.edge(bodyEnds[i].id, end.id, blockId);
-  }
-  return { leadIn, leadOut: null };
+  return { leadIn, leadOut: leadEnd };
 }
 
 /**
@@ -341,53 +291,48 @@ export function generateCity(): Layout {
     }
   }
 
-  // ========== YARD ALPHA (west-center) ==========
-  const yaLead = g.node("turnout_right", 500, 1100, { label: "YA-trunk", rotation: 0 });
+  // ========== YARD ALPHA (west-central) ==========
+  const yaLead = g.node("turnout_right", 460, 900, { label: "YA-trunk", rotation: 40 });
   g.edge(M.lm.id, yaLead.id, mainW.id);
-  // re-splice: since we already created edge lm->lb, we need a new connector via yaLead
-  // Simpler: treat yaLead as a parallel industry siding on the west mainline.
   const { leadIn: yaWest } = ladderYard(g, {
-    x: 620,
-    y: 1080,
-    trackCount: 10,
-    trackLength: 90,
-    spacing: 30,
+    x: 580,
+    y: 900,
+    trackCount: 8,
+    trackLength: 200,
+    spacing: 28,
     blockId: yardA.id,
     labelPrefix: "YA",
     facing: "east",
-    doubleEnded: true,
   });
-  g.edge(yaLead.id, yaWest.id, yardA.id, { branch: "diverging", curve: 30 });
+  g.edge(yaLead.id, yaWest.id, yardA.id, { branch: "diverging", curve: 20 });
 
-  // ========== ENGINE TERMINAL (south of Yard Alpha) ==========
-  const etTrunk = g.node("turnout_right", 650, 1330, { label: "ET-trunk" });
-  g.edge(yaWest.id, etTrunk.id, yardA.id, { branch: "diverging", curve: 20 });
+  // ========== ENGINE TERMINAL (south-west) ==========
+  const etTrunk = g.node("turnout_right", 480, 1240, { label: "ET-trunk", rotation: 60 });
+  g.edge(M.lm.id, etTrunk.id, mainW.id);
   const { leadIn: etLead } = ladderYard(g, {
-    x: 850,
-    y: 1330,
-    trackCount: 6,
-    trackLength: 110,
-    spacing: 30,
+    x: 620,
+    y: 1280,
+    trackCount: 5,
+    trackLength: 160,
+    spacing: 26,
     blockId: engine.id,
     labelPrefix: "ET",
     facing: "east",
-    doubleEnded: false,
   });
-  g.edge(etTrunk.id, etLead.id, engine.id, { branch: "diverging", curve: 10 });
+  g.edge(etTrunk.id, etLead.id, engine.id, { branch: "diverging", curve: 20 });
 
   // ========== YARD BAKER (northeast) ==========
   const ybTrunk = g.node("turnout_left", 2200, 700, { label: "YB-trunk", rotation: 180 });
   g.edge(M.rt.id, ybTrunk.id, mainE.id);
   const { leadIn: ybLead } = ladderYard(g, {
-    x: 2080,
-    y: 680,
-    trackCount: 8,
-    trackLength: 90,
-    spacing: 30,
+    x: 2100,
+    y: 580,
+    trackCount: 6,
+    trackLength: 200,
+    spacing: 26,
     blockId: yardB.id,
     labelPrefix: "YB",
     facing: "west",
-    doubleEnded: true,
   });
   g.edge(ybTrunk.id, ybLead.id, yardB.id, { branch: "diverging", curve: -30 });
 
@@ -422,7 +367,7 @@ export function generateCity(): Layout {
         rotation: angleDeg,
         label: `IND-${i + 1}`,
       });
-      addInlineSpur(g, turnout, angleDeg, side, indust.id, 150);
+      addInlineSpur(g, turnout, angleDeg, side, indust.id, 220);
       ibTrunk.push(turnout);
     }
   }
@@ -431,18 +376,17 @@ export function generateCity(): Layout {
   }
 
   // ========== STAGING YARD (southeast) ==========
-  const stgTrunk = g.node("turnout_right", 2500, 1400, { label: "STG-trunk" });
+  const stgTrunk = g.node("turnout_right", 2600, 1400, { label: "STG-trunk" });
   g.edge(M.rb.id, stgTrunk.id, mainE.id);
   const { leadIn: stgLead } = ladderYard(g, {
-    x: 2450,
-    y: 1480,
-    trackCount: 8,
-    trackLength: 90,
-    spacing: 28,
+    x: 2500,
+    y: 1400,
+    trackCount: 7,
+    trackLength: 240,
+    spacing: 26,
     blockId: stage.id,
     labelPrefix: "STG",
     facing: "west",
-    doubleEnded: true,
   });
   g.edge(stgTrunk.id, stgLead.id, stage.id, { branch: "diverging", curve: -30 });
 
@@ -496,7 +440,7 @@ export function generateCity(): Layout {
         rotation: angleDeg,
         label: `MTN-S${i}`,
       });
-      addInlineSpur(g, turnout, angleDeg, side, mtn.id, 120);
+      addInlineSpur(g, turnout, angleDeg, side, mtn.id, 160);
       mtnPts.push(turnout);
     } else {
       mtnPts.push(g.node("joint", p.x, p.y));
