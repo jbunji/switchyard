@@ -193,79 +193,85 @@ function ladderYard(
   return { leadIn, leadOut: null };
 }
 
-function industrySpur(
+/**
+ * Splices a passing siding into the mainline between `from` and `to`.
+ * Creates sw1/sw2 on the mainline, wires from→sw1→sw2→to as the straight-through
+ * route, and sw1→sideA→sideB→sw2 as the siding loop. Caller must NOT add its
+ * own from→to edge; this function owns the mainline edges in that span.
+ */
+function insertPassingSiding(
   g: Gen,
-  trunkPrev: TrackNode,
-  trunkNext: TrackNode,
-  blockId: string,
-  spurBlockId: string,
-  label: string,
-  side: 1 | -1,
-): TrackNode {
-  // Split: insert a turnout between trunkPrev and trunkNext
-  // Actually caller controls trunk edges — we just add a turnout node and wire it.
-  // Here we re-create the segment via new node.
-  const mx = (trunkPrev.x + trunkNext.x) / 2;
-  const my = (trunkPrev.y + trunkNext.y) / 2;
-  const dx = trunkNext.x - trunkPrev.x;
-  const dy = trunkNext.y - trunkPrev.y;
-  const len = Math.hypot(dx, dy) || 1;
-  const tx = mx;
-  const ty = my;
-  const turnoutType: NodeType = side > 0 ? "turnout_right" : "turnout_left";
-  const rot = (Math.atan2(dy, dx) * 180) / Math.PI;
-  const turnout = g.node(turnoutType, tx, ty, { rotation: rot, label });
-
-  const px = (-dy / len) * side;
-  const py = (dx / len) * side;
-  const spur = g.node("endpoint", tx + px * 180, ty + py * 180);
-  g.edge(turnout.id, spur.id, spurBlockId, { branch: "diverging", curve: side * 30 });
-  return turnout;
-}
-
-function passingSiding(
-  g: Gen,
-  startNode: TrackNode,
-  endNode: TrackNode,
+  from: TrackNode,
+  to: TrackNode,
   mainBlock: string,
   sideBlock: string,
   side: 1 | -1,
   label: string,
-): { startSw: TrackNode; endSw: TrackNode } {
-  const dx = endNode.x - startNode.x;
-  const dy = endNode.y - startNode.y;
+  mainCurve: number = 0,
+): { startSw: TrackNode; endSw: TrackNode; mainEdges: TrackEdge[] } {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
   const len = Math.hypot(dx, dy) || 1;
   const ux = dx / len;
   const uy = dy / len;
   const px = -uy * side;
   const py = ux * side;
-  const tStart = 0.22;
-  const tEnd = 0.78;
+  const rot = (Math.atan2(dy, dx) * 180) / Math.PI;
+  const tStart = 0.28;
+  const tEnd = 0.72;
 
   const sw1 = g.node(side > 0 ? "turnout_right" : "turnout_left",
-    startNode.x + dx * tStart,
-    startNode.y + dy * tStart,
-    { rotation: (Math.atan2(dy, dx) * 180) / Math.PI, label: `${label}-W` },
+    from.x + dx * tStart,
+    from.y + dy * tStart,
+    { rotation: rot, label: `${label}-W` },
   );
   const sw2 = g.node(side > 0 ? "turnout_left" : "turnout_right",
-    startNode.x + dx * tEnd,
-    startNode.y + dy * tEnd,
-    { rotation: (Math.atan2(dy, dx) * 180) / Math.PI, label: `${label}-E` },
+    from.x + dx * tEnd,
+    from.y + dy * tEnd,
+    { rotation: rot + 180, label: `${label}-E` },
   );
+  const sideOffset = Math.min(70, len * 0.18);
   const sideA = g.node("joint",
-    sw1.x + ux * (len * (tEnd - tStart) * 0.2) + px * 60,
-    sw1.y + uy * (len * (tEnd - tStart) * 0.2) + py * 60,
+    sw1.x + ux * (len * (tEnd - tStart) * 0.22) + px * sideOffset,
+    sw1.y + uy * (len * (tEnd - tStart) * 0.22) + py * sideOffset,
   );
   const sideB = g.node("joint",
-    sw2.x - ux * (len * (tEnd - tStart) * 0.2) + px * 60,
-    sw2.y - uy * (len * (tEnd - tStart) * 0.2) + py * 60,
+    sw2.x - ux * (len * (tEnd - tStart) * 0.22) + px * sideOffset,
+    sw2.y - uy * (len * (tEnd - tStart) * 0.22) + py * sideOffset,
   );
 
-  g.edge(sw1.id, sideA.id, sideBlock, { branch: "diverging", curve: side * 25 });
-  g.edge(sideA.id, sideB.id, sideBlock);
-  g.edge(sideB.id, sw2.id, sideBlock, { branch: "diverging", curve: -side * 25 });
+  // Mainline through siding (owns the span from → to)
+  const me1 = g.edge(from.id, sw1.id, mainBlock, { curve: mainCurve * 0.3 });
+  const me2 = g.edge(sw1.id, sw2.id, mainBlock);
+  const me3 = g.edge(sw2.id, to.id, mainBlock, { curve: mainCurve * 0.3 });
 
-  return { startSw: sw1, endSw: sw2 };
+  // Siding loop
+  g.edge(sw1.id, sideA.id, sideBlock, { branch: "diverging", curve: side * 20 });
+  g.edge(sideA.id, sideB.id, sideBlock);
+  g.edge(sideB.id, sw2.id, sideBlock, { branch: "diverging", curve: -side * 20 });
+
+  return { startSw: sw1, endSw: sw2, mainEdges: [me1, me2, me3] };
+}
+
+/**
+ * Places a turnout node on an in-progress trunk path with a diverging spur.
+ * Caller is responsible for connecting this turnout into the trunk via plain
+ * edges (prev → turnout → next); this function only creates the spur leg.
+ */
+function addInlineSpur(
+  g: Gen,
+  turnout: TrackNode,
+  trunkAngleDeg: number,
+  side: 1 | -1,
+  spurBlockId: string,
+  spurLength: number = 160,
+): TrackNode {
+  const rad = (trunkAngleDeg * Math.PI) / 180;
+  const px = -Math.sin(rad) * side;
+  const py = Math.cos(rad) * side;
+  const spurEnd = g.node("endpoint", turnout.x + px * spurLength, turnout.y + py * spurLength);
+  g.edge(turnout.id, spurEnd.id, spurBlockId, { branch: "diverging", curve: side * 25 });
+  return spurEnd;
 }
 
 export function generateCity(): Layout {
@@ -302,19 +308,38 @@ export function generateCity(): Layout {
     lt: g.node("joint", 160, 700),
   };
 
-  // Connect the main loop (with gentle curves on corners)
+  // Connect the main loop (with gentle curves on corners + spliced passing sidings)
   const mainSeq = [M.tl, M.tm, M.tmm, M.tr, M.rt, M.rm, M.rb, M.br, M.bm, M.bmm, M.bl, M.lb, M.lm, M.lt, M.tl];
   const mainBlocks = [mainN, mainN, mainN, mainE, mainE, mainE, mainE, mainS, mainS, mainS, mainW, mainW, mainW, mainW];
   const mainCurves = [0, 0, 60, 40, 0, 0, 40, 0, 0, 60, 40, 0, 0, 60];
-  for (let i = 0; i < mainSeq.length - 1; i++) {
-    g.edge(mainSeq[i].id, mainSeq[i + 1].id, mainBlocks[i].id, { curve: mainCurves[i] ?? 0 });
-  }
 
-  // ========== PASSING SIDINGS on main ==========
-  passingSiding(g, M.tm, M.tmm, mainN.id, sidings.id, -1, "NPS");
-  passingSiding(g, M.bmm, M.bm, mainS.id, sidings.id, 1, "SPS");
-  passingSiding(g, M.rt, M.rm, mainE.id, sidings.id, -1, "EPS");
-  passingSiding(g, M.lm, M.lt, mainW.id, sidings.id, 1, "WPS");
+  const sidingAt: Record<number, { side: 1 | -1; label: string }> = {
+    1: { side: 1, label: "NPS" },   // tm → tmm (north, interior siding)
+    5: { side: 1, label: "EPS" },   // rm → rb (east main)
+    12: { side: 1, label: "WPS" },  // lm → lt (west main, interior)
+  };
+  const mainRouteEdges: string[] = [];
+  for (let i = 0; i < mainSeq.length - 1; i++) {
+    const cfg = sidingAt[i];
+    if (cfg) {
+      const { mainEdges } = insertPassingSiding(
+        g,
+        mainSeq[i],
+        mainSeq[i + 1],
+        mainBlocks[i].id,
+        sidings.id,
+        cfg.side,
+        cfg.label,
+        mainCurves[i] ?? 0,
+      );
+      for (const e of mainEdges) mainRouteEdges.push(e.id);
+    } else {
+      const edge = g.edge(mainSeq[i].id, mainSeq[i + 1].id, mainBlocks[i].id, {
+        curve: mainCurves[i] ?? 0,
+      });
+      mainRouteEdges.push(edge.id);
+    }
+  }
 
   // ========== YARD ALPHA (west-center) ==========
   const yaLead = g.node("turnout_right", 500, 1100, { label: "YA-trunk", rotation: 0 });
@@ -366,12 +391,11 @@ export function generateCity(): Layout {
   });
   g.edge(ybTrunk.id, ybLead.id, yardB.id, { branch: "diverging", curve: -30 });
 
-  // ========== INDUSTRIAL BRANCH (east) ==========
-  const ibTrunk0 = g.node("turnout_right", 2550, 1100, { label: "IB-trunk" });
+  // ========== INDUSTRIAL BRANCH (east) — inline spurs ==========
+  const ibTrunk0 = g.node("turnout_right", 2550, 1100, { label: "IB-0" });
   g.edge(M.rm.id, ibTrunk0.id, mainE.id);
 
-  const trunkPoints: TrackNode[] = [ibTrunk0];
-  const positions = [
+  const ibPositions = [
     { x: 2400, y: 1180 },
     { x: 2250, y: 1220 },
     { x: 2100, y: 1230 },
@@ -382,18 +406,28 @@ export function generateCity(): Layout {
     { x: 1350, y: 1240 },
     { x: 1200, y: 1260 },
   ];
-  for (const p of positions) {
-    const n = g.node("joint", p.x, p.y);
-    trunkPoints.push(n);
+  const ibTrunk: TrackNode[] = [ibTrunk0];
+  for (let i = 0; i < ibPositions.length; i++) {
+    const p = ibPositions[i];
+    const prev = i === 0 ? ibTrunk0 : ibPositions[i - 1];
+    const next = i < ibPositions.length - 1 ? ibPositions[i + 1] : p;
+    const angleDeg = (Math.atan2(next.y - prev.y, next.x - prev.x) * 180) / Math.PI;
+    const isLast = i === ibPositions.length - 1;
+    if (isLast) {
+      ibTrunk.push(g.node("endpoint", p.x, p.y, { label: "IB end" }));
+    } else {
+      const side: 1 | -1 = i % 2 === 0 ? 1 : -1;
+      const turnoutType: NodeType = side > 0 ? "turnout_right" : "turnout_left";
+      const turnout = g.node(turnoutType, p.x, p.y, {
+        rotation: angleDeg,
+        label: `IND-${i + 1}`,
+      });
+      addInlineSpur(g, turnout, angleDeg, side, indust.id, 150);
+      ibTrunk.push(turnout);
+    }
   }
-  for (let i = 0; i < trunkPoints.length - 1; i++) {
-    g.edge(trunkPoints[i].id, trunkPoints[i + 1].id, indust.id, { curve: i % 2 === 0 ? 30 : -30 });
-  }
-
-  // Industry spurs off the trunk
-  for (let i = 1; i < trunkPoints.length - 1; i++) {
-    const side: 1 | -1 = i % 2 === 0 ? 1 : -1;
-    industrySpur(g, trunkPoints[i - 1], trunkPoints[i], indust.id, indust.id, `IND-${i}`, side);
+  for (let i = 0; i < ibTrunk.length - 1; i++) {
+    g.edge(ibTrunk[i].id, ibTrunk[i + 1].id, indust.id, { curve: i % 2 === 0 ? 22 : -22 });
   }
 
   // ========== STAGING YARD (southeast) ==========
@@ -435,13 +469,11 @@ export function generateCity(): Layout {
   g.edge(pxStubSw1.id, pxStubA.id, pax.id, { branch: "diverging", curve: -15 });
   g.edge(pxStubSw2.id, pxStubB.id, pax.id, { branch: "diverging", curve: 15 });
 
-  // ========== MOUNTAIN LINE (north, serpentine) ==========
+  // ========== MOUNTAIN LINE (north, serpentine with inline spurs) ==========
   const mtnW = g.node("turnout_left", 800, 160, { label: "MTN-W", rotation: 180 });
   const mtnE = g.node("turnout_right", 2100, 160, { label: "MTN-E" });
   g.edge(M.tm.id, mtnW.id, mainN.id);
   g.edge(mtnE.id, M.tmm.id, mainN.id);
-  g.edge(mtnW.id, mtnE.id, mainN.id);
-  const mtnPts: TrackNode[] = [mtnW];
   const mtnCoords = [
     { x: 950, y: 80 },
     { x: 1150, y: 40 },
@@ -450,30 +482,39 @@ export function generateCity(): Layout {
     { x: 1750, y: 80 },
     { x: 1950, y: 60 },
   ];
-  for (const c of mtnCoords) {
-    mtnPts.push(g.node("joint", c.x, c.y));
+  const mtnSpurAt = new Set([1, 3, 4]);
+  const mtnPts: TrackNode[] = [mtnW];
+  for (let i = 0; i < mtnCoords.length; i++) {
+    const p = mtnCoords[i];
+    if (mtnSpurAt.has(i)) {
+      const prev = i === 0 ? mtnW : mtnCoords[i - 1];
+      const next = mtnCoords[i + 1] ?? mtnE;
+      const angleDeg = (Math.atan2(next.y - prev.y, next.x - prev.x) * 180) / Math.PI;
+      const side: 1 | -1 = i % 2 === 0 ? -1 : 1;
+      const turnoutType: NodeType = side > 0 ? "turnout_right" : "turnout_left";
+      const turnout = g.node(turnoutType, p.x, p.y, {
+        rotation: angleDeg,
+        label: `MTN-S${i}`,
+      });
+      addInlineSpur(g, turnout, angleDeg, side, mtn.id, 120);
+      mtnPts.push(turnout);
+    } else {
+      mtnPts.push(g.node("joint", p.x, p.y));
+    }
   }
   mtnPts.push(mtnE);
   for (let i = 0; i < mtnPts.length - 1; i++) {
-    const from = mtnPts[i];
-    const to = mtnPts[i + 1];
     const curve = i % 2 === 0 ? -40 : 40;
-    g.edge(from.id, to.id, mtn.id, { branch: i === 0 || i === mtnPts.length - 2 ? "diverging" : "main", curve });
+    const branch = i === 0 || i === mtnPts.length - 2 ? "diverging" : "main";
+    g.edge(mtnPts[i].id, mtnPts[i + 1].id, mtn.id, { branch, curve });
   }
-  // Mountain crossovers (a couple)
-  industrySpur(g, mtnPts[1], mtnPts[2], mtn.id, mtn.id, "MTN-S1", 1);
-  industrySpur(g, mtnPts[3], mtnPts[4], mtn.id, mtn.id, "MTN-S2", -1);
-  industrySpur(g, mtnPts[4], mtnPts[5], mtn.id, mtn.id, "MTN-S3", 1);
 
   // ========== CROSSOVERS on east main ==========
   // small 2-turnout crossover pairs between mainline segments
   // Simplified: add a few extra sidings
 
   // ========== TRAINS ==========
-  const trains = seedTrains(g, {
-    mainSeq,
-    mainBlocks: mainBlocks.map((b) => b.id),
-  });
+  const trains = seedTrains(g, { mainRouteEdges });
 
   return {
     id: "city",
@@ -487,78 +528,45 @@ export function generateCity(): Layout {
 }
 
 function seedTrains(
-  g: Gen,
-  refs: { mainSeq: TrackNode[]; mainBlocks: string[] },
+  _g: Gen,
+  refs: { mainRouteEdges: string[] },
 ): Train[] {
-  // Build main-loop route: sequence of edges between consecutive mainSeq nodes
-  const edgeByPair = new Map<string, TrackEdge>();
-  for (const e of g.edges) {
-    edgeByPair.set(`${e.from}|${e.to}`, e);
-    edgeByPair.set(`${e.to}|${e.from}`, e);
-  }
-
-  const mainRoute: string[] = [];
-  for (let i = 0; i < refs.mainSeq.length - 1; i++) {
-    const key = `${refs.mainSeq[i].id}|${refs.mainSeq[i + 1].id}`;
-    const e = edgeByPair.get(key);
-    if (e) mainRoute.push(e.id);
-  }
-
-  const firstEdge = g.edges.find((e) => e.id === mainRoute[0]);
-  const secondEdge = g.edges.find((e) => e.id === mainRoute[8]);
+  const mainRoute = refs.mainRouteEdges;
+  if (mainRoute.length === 0) return [];
 
   const trains: Train[] = [];
-  if (firstEdge) {
-    trains.push({
-      id: "t-union-pacific",
-      road: "UP",
-      number: "4014",
-      color: "#f59e0b",
-      length: 3,
-      position: { edgeId: firstEdge.id, offset: 0.1, direction: "forward" },
-      velocity: 50,
-      maxVelocity: 100,
-      route: mainRoute,
-      routeIndex: 0,
-      waiting: false,
-      paused: false,
-    });
-  }
-  if (secondEdge) {
-    trains.push({
-      id: "t-bnsf",
-      road: "BNSF",
-      number: "4429",
-      color: "#fb923c",
-      length: 3,
-      position: { edgeId: secondEdge.id, offset: 0.5, direction: "forward" },
-      velocity: 70,
-      maxVelocity: 120,
-      route: mainRoute,
-      routeIndex: 8,
-      waiting: false,
-      paused: false,
-    });
-  }
-  if (mainRoute.length > 4) {
-    const third = g.edges.find((e) => e.id === mainRoute[4]);
-    if (third) {
-      trains.push({
-        id: "t-amtrak",
-        road: "AMTK",
-        number: "156",
-        color: "#60a5fa",
-        length: 3,
-        position: { edgeId: third.id, offset: 0.2, direction: "forward" },
-        velocity: 90,
-        maxVelocity: 140,
-        route: mainRoute,
-        routeIndex: 4,
-        waiting: false,
-        paused: false,
-      });
-    }
-  }
+  const seeds: Array<{
+    id: string;
+    road: string;
+    number: string;
+    color: string;
+    velocity: number;
+    maxVelocity: number;
+    routeIndex: number;
+    offset: number;
+  }> = [
+    { id: "t-up", road: "UP", number: "4014", color: "#f59e0b", velocity: 55, maxVelocity: 100, routeIndex: 0, offset: 0.2 },
+    { id: "t-bnsf", road: "BNSF", number: "4429", color: "#fb923c", velocity: 75, maxVelocity: 120, routeIndex: Math.floor(mainRoute.length * 0.4), offset: 0.4 },
+    { id: "t-amtk", road: "AMTK", number: "156", color: "#60a5fa", velocity: 95, maxVelocity: 140, routeIndex: Math.floor(mainRoute.length * 0.7), offset: 0.1 },
+  ];
 
+  for (const s of seeds) {
+    const edgeId = mainRoute[s.routeIndex];
+    if (!edgeId) continue;
+    trains.push({
+      id: s.id,
+      road: s.road,
+      number: s.number,
+      color: s.color,
+      length: 3,
+      position: { edgeId, offset: s.offset, direction: "forward" },
+      velocity: s.velocity,
+      maxVelocity: s.maxVelocity,
+      route: mainRoute,
+      routeIndex: s.routeIndex,
+      waiting: false,
+      paused: false,
+    });
+  }
   return trains;
 }
