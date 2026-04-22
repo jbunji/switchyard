@@ -216,13 +216,13 @@ export function tickSimulation(layout: Layout, dt: number): SimStep {
       continue;
     }
 
-    // Collision check: is next block held by a different train?
-    // Priority rule: if the holder has lower priority than us AND we haven't
-    // already got dibs on the block, we can preempt (we process in priority
-    // order, so higher priority claims first).
+    // Collision check: if the next block is held by another train, wait.
+    // Priority matters only for who CLAIMS a freed block first (the
+    // second-pass order is priority-sorted), never for bulldozing through
+    // an occupied one.
     const holder = blockHolder.get(nextEdge.blockId);
     const myPriority = train.priority ?? 5;
-    if (holder && holder.trainId !== train.id && holder.priority >= myPriority) {
+    if (holder && holder.trainId !== train.id) {
       trainUpdates.set(train.id, {
         ...train,
         waiting: true,
