@@ -1,11 +1,9 @@
-import { TrackCanvas } from "@/components/canvas/TrackCanvas";
-import { HUD } from "@/components/hud/HUD";
+import { Editor } from "@/components/editor/Editor";
 
 export default function Home() {
   return (
-    <main className="relative flex-1 w-full overflow-hidden">
-      <TrackCanvas />
-      <HUD />
+    <main className="flex-1 w-full overflow-hidden">
+      <Editor />
     </main>
   );
 }

@@ -8,6 +8,8 @@ interface Props {
   from: TrackNode;
   to: TrackNode;
   block: Block | undefined;
+  isSelected?: boolean;
+  onClick?: () => void;
 }
 
 const RAIL_GAUGE = 8;
@@ -15,7 +17,7 @@ const BALLAST_WIDTH = 22;
 const TIE_SPACING = 14;
 const TIE_LENGTH = 16;
 
-export function TrackEdgeView({ edge, from, to, block }: Props) {
+export function TrackEdgeView({ edge, from, to, block, isSelected, onClick }: Props) {
   const { dx, dy, angle, ties } = useMemo(() => {
     const dx = to.x - from.x;
     const dy = to.y - from.y;
@@ -51,7 +53,19 @@ export function TrackEdgeView({ edge, from, to, block }: Props) {
   const glowColor = block?.color ?? "#3b82f6";
 
   return (
-    <g>
+    <g onClick={onClick} style={{ cursor: onClick ? "pointer" : undefined }}>
+      {isSelected && (
+        <line
+          x1={from.x}
+          y1={from.y}
+          x2={to.x}
+          y2={to.y}
+          stroke="#fafafa"
+          strokeWidth={BALLAST_WIDTH + 12}
+          strokeOpacity={0.35}
+          strokeLinecap="round"
+        />
+      )}
       {occupied && (
         <line
           x1={from.x}

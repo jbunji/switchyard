@@ -1,19 +1,16 @@
 "use client";
 
 import type { TrackNode } from "@/lib/graph/types";
-import { useLayoutStore } from "@/lib/store/layout";
 
 interface Props {
   node: TrackNode;
+  isSelected?: boolean;
+  isSnapTarget?: boolean;
+  onClick?: () => void;
 }
 
-export function TrackNodeView({ node }: Props) {
-  const toggle = useLayoutStore((s) => s.toggleTurnout);
-  const select = useLayoutStore((s) => s.select);
-  const selectedId = useLayoutStore((s) => s.selectedId);
-
+export function TrackNodeView({ node, isSelected, isSnapTarget, onClick }: Props) {
   const isTurnout = node.type.startsWith("turnout");
-  const isSelected = selectedId === node.id;
 
   if (isTurnout) {
     const normal = node.state !== "diverging";
@@ -23,11 +20,13 @@ export function TrackNodeView({ node }: Props) {
       <g
         onClick={(e) => {
           e.stopPropagation();
-          select(node.id);
-          toggle(node.id);
+          onClick?.();
         }}
-        style={{ cursor: "pointer" }}
+        style={{ cursor: onClick ? "pointer" : "default" }}
       >
+        {isSnapTarget && (
+          <circle cx={node.x} cy={node.y} r={18} fill="none" stroke="#fbbf24" strokeWidth={1.5} strokeDasharray="3 3" />
+        )}
         <circle cx={node.x} cy={node.y} r={14} fill={fill} fillOpacity={0.2} />
         <circle
           cx={node.x}
@@ -58,10 +57,13 @@ export function TrackNodeView({ node }: Props) {
     <g
       onClick={(e) => {
         e.stopPropagation();
-        select(node.id);
+        onClick?.();
       }}
-      style={{ cursor: "pointer" }}
+      style={{ cursor: onClick ? "pointer" : "default" }}
     >
+      {isSnapTarget && (
+        <circle cx={node.x} cy={node.y} r={12} fill="none" stroke="#fbbf24" strokeWidth={1.5} strokeDasharray="3 3" />
+      )}
       <circle
         cx={node.x}
         cy={node.y}
