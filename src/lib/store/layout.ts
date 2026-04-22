@@ -56,6 +56,7 @@ interface LayoutState {
   viewport: Viewport;
   cursor: Cursor;
   draw: DrawState;
+  ghostRotation: number;
   gridSize: number;
   gridEnabled: boolean;
   snapEnabled: boolean;
@@ -68,6 +69,8 @@ interface LayoutState {
   setViewport: (v: Viewport) => void;
   setCursor: (c: Cursor) => void;
   setDrawFrom: (id: string | null) => void;
+  setGhostRotation: (deg: number) => void;
+  rotateGhost: (delta: number) => void;
   setGridEnabled: (v: boolean) => void;
   setSnapEnabled: (v: boolean) => void;
   toggleTurnout: (nodeId: string) => void;
@@ -79,7 +82,9 @@ interface LayoutState {
   deleteSelection: () => void;
   updateNodeLabel: (nodeId: string, label: string) => void;
   updateNodeRotation: (nodeId: string, rotation: number) => void;
+  rotateSelectedNode: (delta: number) => void;
   updateEdgeBlock: (edgeId: string, blockId: string) => void;
+  updateEdgeCurve: (edgeId: string, curve: number) => void;
   updateBlock: (blockId: string, patch: Partial<Block>) => void;
   addBlock: () => void;
   undo: () => void;
@@ -96,6 +101,13 @@ function pushPast(past: Layout[], layout: Layout): Layout[] {
   return next;
 }
 
+function normalizeDeg(deg: number): number {
+  let d = deg % 360;
+  if (d > 180) d -= 360;
+  if (d <= -180) d += 360;
+  return d;
+}
+
 export const useLayoutStore = create<LayoutState>((set, get) => ({
   layout: demoLayout(),
   selection: null,
@@ -103,6 +115,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   viewport: { x: 0, y: 0, scale: 1 },
   cursor: { worldX: 0, worldY: 0, snappedX: 0, snappedY: 0, snapTargetId: null },
   draw: { fromNodeId: null },
+  ghostRotation: 0,
   gridSize: 20,
   gridEnabled: true,
   snapEnabled: true,
@@ -123,6 +136,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   setViewport: (viewport) => set({ viewport }),
   setCursor: (cursor) => set({ cursor }),
   setDrawFrom: (id) => set({ draw: { fromNodeId: id } }),
+  setGhostRotation: (deg) => set({ ghostRotation: normalizeDeg(deg) }),
+  rotateGhost: (delta) => set((s) => ({ ghostRotation: normalizeDeg(s.ghostRotation + delta) })),
   setGridEnabled: (v) => set({ gridEnabled: v }),
   setSnapEnabled: (v) => set({ snapEnabled: v }),
 
@@ -157,13 +172,15 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     }),
 
   placeNode: (type, x, y) => {
-    const node = createNode(type, x, y);
-    set((s) => ({
+    const s = get();
+    const rotation = type.startsWith("turnout") ? s.ghostRotation : 0;
+    const node = createNode(type, x, y, { rotation });
+    set({
       layout: addNodeOp(s.layout, node),
       selection: { kind: "node", id: node.id },
       past: pushPast(s.past, s.layout),
       future: [],
-    }));
+    });
     return node;
   },
 
@@ -224,14 +241,35 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
   updateNodeRotation: (nodeId, rotation) =>
     set((s) => ({
-      layout: updateNodeOp(s.layout, nodeId, { rotation }),
+      layout: updateNodeOp(s.layout, nodeId, { rotation: normalizeDeg(rotation) }),
       past: pushPast(s.past, s.layout),
       future: [],
     })),
 
+  rotateSelectedNode: (delta) =>
+    set((s) => {
+      if (s.selection?.kind !== "node") return {};
+      const node = s.layout.nodes.find((n) => n.id === s.selection!.id);
+      if (!node) return {};
+      return {
+        layout: updateNodeOp(s.layout, node.id, {
+          rotation: normalizeDeg(node.rotation + delta),
+        }),
+        past: pushPast(s.past, s.layout),
+        future: [],
+      };
+    }),
+
   updateEdgeBlock: (edgeId, blockId) =>
     set((s) => ({
       layout: updateEdgeOp(s.layout, edgeId, { blockId }),
+      past: pushPast(s.past, s.layout),
+      future: [],
+    })),
+
+  updateEdgeCurve: (edgeId, curve) =>
+    set((s) => ({
+      layout: updateEdgeOp(s.layout, edgeId, { curve }),
       past: pushPast(s.past, s.layout),
       future: [],
     })),

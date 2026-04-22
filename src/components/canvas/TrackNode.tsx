@@ -1,6 +1,7 @@
 "use client";
 
 import type { TrackNode } from "@/lib/graph/types";
+import { TurnoutStub, divergeAngle } from "./TurnoutStub";
 
 interface Props {
   node: TrackNode;
@@ -16,6 +17,10 @@ export function TrackNodeView({ node, isSelected, isSnapTarget, onClick }: Props
     const normal = node.state !== "diverging";
     const fill = normal ? "#10b981" : "#ef4444";
     const ring = normal ? "#34d399" : "#fca5a5";
+    const mainAngle = node.rotation;
+    const divAngle = node.rotation + divergeAngle(node.type);
+    const divActive = !normal;
+
     return (
       <g
         onClick={(e) => {
@@ -24,8 +29,30 @@ export function TrackNodeView({ node, isSelected, isSnapTarget, onClick }: Props
         }}
         style={{ cursor: onClick ? "pointer" : "default" }}
       >
+        <TurnoutStub
+          x={node.x}
+          y={node.y}
+          angleDeg={mainAngle}
+          color={normal ? "#52525b" : "#3f3f46"}
+          opacity={normal ? 0.95 : 0.5}
+        />
+        <TurnoutStub
+          x={node.x}
+          y={node.y}
+          angleDeg={divAngle}
+          color={divActive ? "#52525b" : "#3f3f46"}
+          opacity={divActive ? 0.95 : 0.5}
+        />
         {isSnapTarget && (
-          <circle cx={node.x} cy={node.y} r={18} fill="none" stroke="#fbbf24" strokeWidth={1.5} strokeDasharray="3 3" />
+          <circle
+            cx={node.x}
+            cy={node.y}
+            r={18}
+            fill="none"
+            stroke="#fbbf24"
+            strokeWidth={1.5}
+            strokeDasharray="3 3"
+          />
         )}
         <circle cx={node.x} cy={node.y} r={14} fill={fill} fillOpacity={0.2} />
         <circle
@@ -39,7 +66,7 @@ export function TrackNodeView({ node, isSelected, isSnapTarget, onClick }: Props
         {node.label && (
           <text
             x={node.x}
-            y={node.y - 18}
+            y={node.y - 22}
             textAnchor="middle"
             fontSize={10}
             fontFamily="var(--font-geist-mono)"
@@ -62,7 +89,15 @@ export function TrackNodeView({ node, isSelected, isSnapTarget, onClick }: Props
       style={{ cursor: onClick ? "pointer" : "default" }}
     >
       {isSnapTarget && (
-        <circle cx={node.x} cy={node.y} r={12} fill="none" stroke="#fbbf24" strokeWidth={1.5} strokeDasharray="3 3" />
+        <circle
+          cx={node.x}
+          cy={node.y}
+          r={12}
+          fill="none"
+          stroke="#fbbf24"
+          strokeWidth={1.5}
+          strokeDasharray="3 3"
+        />
       )}
       <circle
         cx={node.x}

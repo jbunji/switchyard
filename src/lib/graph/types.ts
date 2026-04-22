@@ -31,6 +31,7 @@ export const TrackEdgeSchema = z.object({
   blockId: z.string(),
   length: z.number().default(0),
   branch: z.enum(["main", "diverging"]).default("main"),
+  curve: z.number().default(0),
 });
 export type TrackEdge = z.infer<typeof TrackEdgeSchema>;
 

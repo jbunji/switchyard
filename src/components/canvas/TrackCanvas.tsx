@@ -7,6 +7,7 @@ import { TrackEdgeView } from "./TrackEdge";
 import { TrackNodeView } from "./TrackNode";
 import { TrainMarker } from "./TrainMarker";
 import { CursorGhost } from "./CursorGhost";
+import { EdgeBendHandle } from "./EdgeBendHandle";
 
 export function TrackCanvas() {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -328,6 +329,7 @@ export function TrackCanvas() {
           <TrainMarker key={train.id} train={train} edges={layout.edges} nodes={layout.nodes} />
         ))}
 
+        <EdgeBendHandle />
         <CursorGhost />
       </g>
 

@@ -10,6 +10,7 @@ export function Inspector() {
   const updateNodeLabel = useLayoutStore((s) => s.updateNodeLabel);
   const updateNodeRotation = useLayoutStore((s) => s.updateNodeRotation);
   const updateEdgeBlock = useLayoutStore((s) => s.updateEdgeBlock);
+  const updateEdgeCurve = useLayoutStore((s) => s.updateEdgeCurve);
   const updateBlock = useLayoutStore((s) => s.updateBlock);
   const addBlock = useLayoutStore((s) => s.addBlock);
   const toggleBlockOccupancy = useLayoutStore((s) => s.toggleBlockOccupancy);
@@ -38,8 +39,9 @@ export function Inspector() {
             <ul className="space-y-1">
               <li>· click a turnout to throw it</li>
               <li>· select a tool from the left rail</li>
-              <li>· drag empty space to pan</li>
-              <li>· wheel to zoom</li>
+              <li>· <span className="text-zinc-300">[</span> / <span className="text-zinc-300">]</span> rotates turnouts (Shift = 45°)</li>
+              <li>· drag the yellow dot on a selected edge to bend it</li>
+              <li>· drag empty space to pan · wheel to zoom</li>
               <li>· Cmd/Ctrl+Z to undo</li>
             </ul>
           </div>
@@ -128,6 +130,29 @@ export function Inspector() {
                   </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <div className="flex items-center justify-between">
+                <Label>curve ({selectedEdge.curve})</Label>
+                <button
+                  onClick={() => updateEdgeCurve(selectedEdge.id, 0)}
+                  className="text-[9px] font-mono text-zinc-500 hover:text-zinc-300 uppercase"
+                >
+                  reset
+                </button>
+              </div>
+              <input
+                type="range"
+                min={-200}
+                max={200}
+                step={5}
+                value={selectedEdge.curve}
+                onChange={(e) => updateEdgeCurve(selectedEdge.id, Number(e.target.value))}
+                className="w-full mt-1 accent-amber-400"
+              />
+              <div className="text-[10px] font-mono text-zinc-600 mt-1">
+                drag the yellow handle on the canvas too
+              </div>
             </div>
             <button
               onClick={deleteSelection}

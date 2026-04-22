@@ -13,13 +13,13 @@ export function demoLayout(): Layout {
   ];
 
   const edges: TrackEdge[] = [
-    { id: "e1", from: "n1", to: "n2", blockId: "b-main-w", length: 200, branch: "main" },
-    { id: "e2", from: "n2", to: "n7", blockId: "b-main-c", length: 200, branch: "main" },
-    { id: "e3", from: "n7", to: "n3", blockId: "b-main-c", length: 200, branch: "main" },
-    { id: "e4", from: "n3", to: "n4", blockId: "b-main-e", length: 200, branch: "main" },
-    { id: "e5", from: "n3", to: "n5", blockId: "b-siding-n", length: 140, branch: "diverging" },
-    { id: "e6", from: "n2", to: "n6", blockId: "b-siding-s", length: 140, branch: "diverging" },
-    { id: "e7", from: "n7", to: "n8", blockId: "b-indust", length: 140, branch: "diverging" },
+    { id: "e1", from: "n1", to: "n2", blockId: "b-main-w", length: 200, branch: "main", curve: 0 },
+    { id: "e2", from: "n2", to: "n7", blockId: "b-main-c", length: 200, branch: "main", curve: 0 },
+    { id: "e3", from: "n7", to: "n3", blockId: "b-main-c", length: 200, branch: "main", curve: 0 },
+    { id: "e4", from: "n3", to: "n4", blockId: "b-main-e", length: 200, branch: "main", curve: 0 },
+    { id: "e5", from: "n3", to: "n5", blockId: "b-siding-n", length: 140, branch: "diverging", curve: -30 },
+    { id: "e6", from: "n2", to: "n6", blockId: "b-siding-s", length: 140, branch: "diverging", curve: 30 },
+    { id: "e7", from: "n7", to: "n8", blockId: "b-indust", length: 140, branch: "diverging", curve: 0 },
   ];
 
   const blocks: Block[] = [

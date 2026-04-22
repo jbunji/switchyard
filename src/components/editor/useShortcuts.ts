@@ -12,6 +12,9 @@ export function useShortcuts() {
   const undo = useLayoutStore((s) => s.undo);
   const redo = useLayoutStore((s) => s.redo);
   const setDrawFrom = useLayoutStore((s) => s.setDrawFrom);
+  const rotateGhost = useLayoutStore((s) => s.rotateGhost);
+  const rotateSelectedNode = useLayoutStore((s) => s.rotateSelectedNode);
+  const tool = useLayoutStore((s) => s.tool);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -31,6 +34,25 @@ export function useShortcuts() {
         e.preventDefault();
         redo();
         return;
+      }
+
+      switch (e.key) {
+        case "[": {
+          e.preventDefault();
+          const delta = e.shiftKey ? -45 : -15;
+          const placing = tool === "place_turnout_left" || tool === "place_turnout_right";
+          if (placing) rotateGhost(delta);
+          else if (selection?.kind === "node") rotateSelectedNode(delta);
+          return;
+        }
+        case "]": {
+          e.preventDefault();
+          const delta = e.shiftKey ? 45 : 15;
+          const placing = tool === "place_turnout_left" || tool === "place_turnout_right";
+          if (placing) rotateGhost(delta);
+          else if (selection?.kind === "node") rotateSelectedNode(delta);
+          return;
+        }
       }
 
       switch (e.key.toLowerCase()) {
@@ -70,5 +92,17 @@ export function useShortcuts() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [setTool, setGridEnabled, gridEnabled, deleteSelection, selection, undo, redo, setDrawFrom]);
+  }, [
+    setTool,
+    setGridEnabled,
+    gridEnabled,
+    deleteSelection,
+    selection,
+    undo,
+    redo,
+    setDrawFrom,
+    rotateGhost,
+    rotateSelectedNode,
+    tool,
+  ]);
 }

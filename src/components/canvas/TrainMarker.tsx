@@ -1,6 +1,7 @@
 "use client";
 
 import type { Train, TrackEdge, TrackNode } from "@/lib/graph/types";
+import { edgeGeometry } from "@/lib/graph/geometry";
 
 interface Props {
   train: Train;
@@ -16,13 +17,12 @@ export function TrainMarker({ train, edges, nodes }: Props) {
   const to = nodes.find((n) => n.id === edge.to);
   if (!from || !to) return null;
 
-  const t = train.position.offset;
-  const cx = from.x + (to.x - from.x) * t;
-  const cy = from.y + (to.y - from.y) * t;
-  const angle = (Math.atan2(to.y - from.y, to.x - from.x) * 180) / Math.PI;
+  const geo = edgeGeometry(from, to, edge.curve);
+  const sample = geo.sampleAt(train.position.offset);
+  const angle = (Math.atan2(sample.ty, sample.tx) * 180) / Math.PI;
 
   return (
-    <g transform={`translate(${cx}, ${cy}) rotate(${angle})`}>
+    <g transform={`translate(${sample.x}, ${sample.y}) rotate(${angle})`}>
       <rect
         x={-22}
         y={-8}

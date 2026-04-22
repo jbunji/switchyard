@@ -114,6 +114,7 @@ export function createEdge(
     blockId,
     length: opts?.length ?? 0,
     branch: opts?.branch ?? "main",
+    curve: opts?.curve ?? 0,
   };
 }
 

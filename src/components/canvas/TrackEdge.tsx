@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import type { Block, TrackEdge, TrackNode } from "@/lib/graph/types";
+import { edgeGeometry } from "@/lib/graph/geometry";
 
 interface Props {
   edge: TrackEdge;
@@ -18,34 +19,34 @@ const TIE_SPACING = 14;
 const TIE_LENGTH = 16;
 
 export function TrackEdgeView({ edge, from, to, block, isSelected, onClick }: Props) {
-  const { dx, dy, angle, ties } = useMemo(() => {
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const len = Math.sqrt(dx * dx + dy * dy);
-    const angle = Math.atan2(dy, dx);
-    const count = Math.max(2, Math.floor(len / TIE_SPACING));
-    const ties = Array.from({ length: count }, (_, i) => (i + 0.5) / count);
-    return { dx, dy, angle, ties };
-  }, [from.x, from.y, to.x, to.y]);
+  const { path, ties, rail1, rail2 } = useMemo(() => {
+    const geo = edgeGeometry(from, to, edge.curve);
+    const tieCount = Math.max(2, Math.floor(geo.length / TIE_SPACING));
+    const sampleCount = Math.max(tieCount * 2, 24);
+    const samples = geo.samples(sampleCount);
 
-  const nx = Math.cos(angle);
-  const ny = Math.sin(angle);
-  const px = -ny;
-  const py = nx;
+    const tieStep = Math.max(1, Math.floor(sampleCount / tieCount));
+    const ties: { x: number; y: number; tx: number; ty: number }[] = [];
+    for (let i = Math.floor(tieStep / 2); i < sampleCount; i += tieStep) {
+      ties.push(samples[i]);
+    }
 
-  const railOffset = RAIL_GAUGE / 2;
-  const rail1 = {
-    x1: from.x + px * railOffset,
-    y1: from.y + py * railOffset,
-    x2: to.x + px * railOffset,
-    y2: to.y + py * railOffset,
-  };
-  const rail2 = {
-    x1: from.x - px * railOffset,
-    y1: from.y - py * railOffset,
-    x2: to.x - px * railOffset,
-    y2: to.y - py * railOffset,
-  };
+    const rail1Points: string[] = [];
+    const rail2Points: string[] = [];
+    for (const s of samples) {
+      const px = -s.ty;
+      const py = s.tx;
+      rail1Points.push(`${s.x + px * (RAIL_GAUGE / 2)},${s.y + py * (RAIL_GAUGE / 2)}`);
+      rail2Points.push(`${s.x - px * (RAIL_GAUGE / 2)},${s.y - py * (RAIL_GAUGE / 2)}`);
+    }
+
+    return {
+      path: geo.d,
+      ties,
+      rail1: rail1Points.join(" "),
+      rail2: rail2Points.join(" "),
+    };
+  }, [from, to, edge.curve]);
 
   const occupied = block?.occupied ?? false;
   const ballastColor = occupied ? "#4a2520" : "#2a2520";
@@ -55,11 +56,9 @@ export function TrackEdgeView({ edge, from, to, block, isSelected, onClick }: Pr
   return (
     <g onClick={onClick} style={{ cursor: onClick ? "pointer" : undefined }}>
       {isSelected && (
-        <line
-          x1={from.x}
-          y1={from.y}
-          x2={to.x}
-          y2={to.y}
+        <path
+          d={path}
+          fill="none"
           stroke="#fafafa"
           strokeWidth={BALLAST_WIDTH + 12}
           strokeOpacity={0.35}
@@ -67,46 +66,56 @@ export function TrackEdgeView({ edge, from, to, block, isSelected, onClick }: Pr
         />
       )}
       {occupied && (
-        <line
-          x1={from.x}
-          y1={from.y}
-          x2={to.x}
-          y2={to.y}
+        <path
+          d={path}
+          fill="none"
           stroke={glowColor}
           strokeWidth={BALLAST_WIDTH + 8}
           strokeOpacity={0.25}
           strokeLinecap="round"
         />
       )}
-      <line
-        x1={from.x}
-        y1={from.y}
-        x2={to.x}
-        y2={to.y}
+      <path
+        d={path}
+        fill="none"
         stroke={ballastColor}
         strokeWidth={BALLAST_WIDTH}
         strokeLinecap="round"
       />
       {ties.map((t, i) => {
-        const cx = from.x + dx * t;
-        const cy = from.y + dy * t;
+        const px = -t.ty;
+        const py = t.tx;
         return (
           <line
             key={`${edge.id}-t-${i}`}
-            x1={cx + px * (TIE_LENGTH / 2)}
-            y1={cy + py * (TIE_LENGTH / 2)}
-            x2={cx - px * (TIE_LENGTH / 2)}
-            y2={cy - py * (TIE_LENGTH / 2)}
+            x1={t.x + px * (TIE_LENGTH / 2)}
+            y1={t.y + py * (TIE_LENGTH / 2)}
+            x2={t.x - px * (TIE_LENGTH / 2)}
+            y2={t.y - py * (TIE_LENGTH / 2)}
             stroke={tieColor}
             strokeWidth={3}
             strokeLinecap="round"
           />
         );
       })}
-      <line {...rail1} stroke="#d4d4d8" strokeWidth={1.5} />
-      <line {...rail2} stroke="#d4d4d8" strokeWidth={1.5} />
-      <line {...rail1} stroke="#ffffff" strokeWidth={0.5} strokeOpacity={0.6} />
-      <line {...rail2} stroke="#ffffff" strokeWidth={0.5} strokeOpacity={0.6} />
+      <polyline points={rail1} fill="none" stroke="#d4d4d8" strokeWidth={1.5} strokeLinejoin="round" />
+      <polyline points={rail2} fill="none" stroke="#d4d4d8" strokeWidth={1.5} strokeLinejoin="round" />
+      <polyline
+        points={rail1}
+        fill="none"
+        stroke="#ffffff"
+        strokeWidth={0.5}
+        strokeOpacity={0.6}
+        strokeLinejoin="round"
+      />
+      <polyline
+        points={rail2}
+        fill="none"
+        stroke="#ffffff"
+        strokeWidth={0.5}
+        strokeOpacity={0.6}
+        strokeLinejoin="round"
+      />
     </g>
   );
 }
