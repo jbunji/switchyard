@@ -420,14 +420,24 @@ export function generateCity(): Layout {
   const g = new Gen();
 
   // ---- Blocks ----
-  const bOuterN = g.block("Outer N", "#3b82f6");
-  const bOuterE = g.block("Outer E", "#06b6d4");
-  const bOuterS = g.block("Outer S", "#0ea5e9");
-  const bOuterW = g.block("Outer W", "#14b8a6");
-  const bInnerN = g.block("Inner N", "#a78bfa");
-  const bInnerE = g.block("Inner E", "#c084fc");
-  const bInnerS = g.block("Inner S", "#d8b4fe");
-  const bInnerW = g.block("Inner W", "#e9d5ff");
+  // Per-edge outer + inner blocks so chained trains never deadlock by
+  // fighting over a shared 4-block "side" allocation.
+  const outerSideColors = ["#3b82f6", "#3b82f6", "#3b82f6", "#06b6d4", "#06b6d4", "#06b6d4", "#06b6d4",
+    "#0ea5e9", "#0ea5e9", "#0ea5e9", "#14b8a6", "#14b8a6", "#14b8a6", "#14b8a6"];
+  const outerBlocks: Block[] = [];
+  for (let i = 0; i < 14; i++) {
+    outerBlocks.push(g.block(`Outer ${i + 1}`, outerSideColors[i]));
+  }
+  const innerSideColors = ["#a78bfa", "#c084fc", "#c084fc", "#c084fc",
+    "#d8b4fe", "#e9d5ff", "#e9d5ff", "#a78bfa"];
+  const innerBlocks: Block[] = [];
+  for (let i = 0; i < 8; i++) {
+    innerBlocks.push(g.block(`Inner ${i + 1}`, innerSideColors[i]));
+  }
+  // Detour exit blocks so the post-turnout main edge is distinct from the
+  // pre-turnout edge — trains entering and exiting can't deadlock.
+  const bMtnExit = g.block("Mtn exit", "#3b82f6");
+  const bIndExit = g.block("Ind exit", "#0ea5e9");
   const bMtn = g.block("Mountain Division", "#ec4899");
   const bInd = g.block("Industrial District", "#f97316");
   const bYardA = g.block("Yard Alpha", "#10b981");
@@ -457,10 +467,7 @@ export function generateCity(): Layout {
     O.tl, O.tm, O.tmm, O.tr, O.rt, O.rm, O.rb, O.br,
     O.bm, O.bmm, O.bl, O.lb, O.lm, O.lt, O.tl,
   ];
-  const outerBlockIds = [
-    bOuterN.id, bOuterN.id, bOuterN.id, bOuterE.id, bOuterE.id, bOuterE.id, bOuterE.id,
-    bOuterS.id, bOuterS.id, bOuterS.id, bOuterW.id, bOuterW.id, bOuterW.id, bOuterW.id,
-  ];
+  const outerBlockIds = outerBlocks.map((b) => b.id);
   const outerCurves = [0, 0, 60, 40, 0, 0, 40, 0, 0, 60, 40, 0, 0, 60];
 
   // ---- INNER MAIN LOOP (concentric oval) ----
@@ -475,10 +482,7 @@ export function generateCity(): Layout {
     lt: g.node("joint", 470, 820),
   };
   const innerSeq = [I.tl, I.tr, I.rt, I.rb, I.br, I.bl, I.lb, I.lt, I.tl];
-  const innerBlockIds = [
-    bInnerN.id, bInnerE.id, bInnerE.id, bInnerE.id,
-    bInnerS.id, bInnerW.id, bInnerW.id, bInnerN.id,
-  ];
+  const innerBlockIds = innerBlocks.map((b) => b.id);
   const innerCurves = [0, 40, 0, 40, 0, 40, 0, 40];
 
   // ---- Build outer mainline edges, splicing in features along the way ----
@@ -512,6 +516,10 @@ export function generateCity(): Layout {
     tStart: 0.08,
     tEnd: 0.92,
   });
+  // Patch: me3 (post-detour mainline edge) uses a dedicated exit block so a
+  // train exiting the detour doesn't fight the incoming-main-block held by
+  // a train waiting to enter.
+  mountain.mainEdges[2].blockId = bMtnExit.id;
   for (const e of mountain.mainEdges) outerRouteEdges.push(e.id);
 
   // Segment 2: tmm → tr (plain NE corner curve)
@@ -588,6 +596,7 @@ export function generateCity(): Layout {
     tStart: 0.08,
     tEnd: 0.92,
   });
+  industrial.mainEdges[2].blockId = bIndExit.id;
   for (const e of industrial.mainEdges) outerRouteEdges.push(e.id);
 
   // Segment 9: bmm → bl (plain SW corner)
@@ -735,7 +744,7 @@ export function generateCity(): Layout {
     rotation: 135, // southeast
     label: "STG-trunk",
   });
-  g.edge(innerSeq[4].id, stgTrunk.id, bInnerS.id, { branch: "diverging", curve: 20 });
+  g.edge(innerSeq[4].id, stgTrunk.id, innerBlockIds[4], { branch: "diverging", curve: 20 });
   // Wait — innerSeq[4] is i-br at (2450, 1520). We want to branch OFF of it toward staging.
   // But we already wired innerSeq[3]→[4] as a plain edge, and innerSeq[4]→[5] via passenger.
   // A new edge from innerSeq[4] → stgTrunk is a THIRD edge at that node (3-way join).
