@@ -90,7 +90,7 @@ function ladderYard(
     facing?: "east" | "west";
     doubleEnded?: boolean;
   },
-): { leadIn: TrackNode; leadOut: TrackNode } {
+): { leadIn: TrackNode; leadOut: TrackNode; leadEdges: TrackEdge[] } {
   const {
     x,
     y,
@@ -110,13 +110,14 @@ function ladderYard(
   const leadIn = g.node("endpoint", x - dir * 40, y, { label: `${labelPrefix} lead` });
   let prev = leadIn;
   const turnouts: TrackNode[] = [];
+  const leadEdges: TrackEdge[] = [];
   for (let i = 0; i < trackCount; i++) {
     const tx = x + dir * i * leadSpan;
     const to = g.node(turnoutType, tx, y, {
       rotation,
       label: `${labelPrefix}-${i + 1}`,
     });
-    g.edge(prev.id, to.id, blockId);
+    leadEdges.push(g.edge(prev.id, to.id, blockId));
     turnouts.push(to);
     prev = to;
   }
@@ -124,7 +125,7 @@ function ladderYard(
   const leadEnd = g.node("endpoint", x + dir * trackCount * leadSpan, y, {
     label: `${labelPrefix} end`,
   });
-  g.edge(prev.id, leadEnd.id, blockId);
+  leadEdges.push(g.edge(prev.id, leadEnd.id, blockId));
 
   // Staggered bodies: body i starts at (2i+1)·leadSpan east of yard origin
   for (let i = 0; i < trackCount; i++) {
@@ -140,7 +141,7 @@ function ladderYard(
     g.edge(bodyStart.id, bodyEnd.id, blockId);
   }
 
-  return { leadIn, leadOut: leadEnd };
+  return { leadIn, leadOut: leadEnd, leadEdges };
 }
 
 /**
@@ -294,7 +295,7 @@ export function generateCity(): Layout {
   // ========== YARD ALPHA (west-central) ==========
   const yaLead = g.node("turnout_right", 460, 900, { label: "YA-trunk", rotation: 40 });
   g.edge(M.lm.id, yaLead.id, mainW.id);
-  const { leadIn: yaWest } = ladderYard(g, {
+  const { leadIn: yaWest, leadEdges: yaLeadEdges } = ladderYard(g, {
     x: 580,
     y: 900,
     trackCount: 8,
@@ -371,8 +372,11 @@ export function generateCity(): Layout {
       ibTrunk.push(turnout);
     }
   }
+  const ibTrunkEdges: TrackEdge[] = [];
   for (let i = 0; i < ibTrunk.length - 1; i++) {
-    g.edge(ibTrunk[i].id, ibTrunk[i + 1].id, indust.id, { curve: i % 2 === 0 ? 22 : -22 });
+    ibTrunkEdges.push(
+      g.edge(ibTrunk[i].id, ibTrunk[i + 1].id, indust.id, { curve: i % 2 === 0 ? 22 : -22 }),
+    );
   }
 
   // ========== STAGING YARD (southeast) ==========
@@ -458,7 +462,11 @@ export function generateCity(): Layout {
   // Simplified: add a few extra sidings
 
   // ========== TRAINS ==========
-  const trains = seedTrains(g, { mainRouteEdges });
+  const trains = seedTrains(g, {
+    mainRouteEdges,
+    ibTrunkEdges: ibTrunkEdges.map((e) => e.id),
+    yaLeadEdges: yaLeadEdges.map((e) => e.id),
+  });
 
   return {
     id: "city",
@@ -473,7 +481,11 @@ export function generateCity(): Layout {
 
 function seedTrains(
   _g: Gen,
-  refs: { mainRouteEdges: string[] },
+  refs: {
+    mainRouteEdges: string[];
+    ibTrunkEdges?: string[];
+    yaLeadEdges?: string[];
+  },
 ): Train[] {
   const mainRoute = refs.mainRouteEdges;
   if (mainRoute.length === 0) return [];
@@ -512,5 +524,46 @@ function seedTrains(
       paused: false,
     });
   }
+
+  // Industrial shuttle — runs back-and-forth along the industrial trunk
+  if (refs.ibTrunkEdges && refs.ibTrunkEdges.length > 1) {
+    const fwd = refs.ibTrunkEdges;
+    const route = [...fwd, ...[...fwd].reverse()];
+    trains.push({
+      id: "t-ind-switcher",
+      road: "SW",
+      number: "IND-01",
+      color: "#a855f7",
+      length: 2,
+      position: { edgeId: fwd[0], offset: 0.2, direction: "forward" },
+      velocity: 45,
+      maxVelocity: 80,
+      route,
+      routeIndex: 0,
+      waiting: false,
+      paused: false,
+    });
+  }
+
+  // Yard Alpha shuttle — runs back-and-forth along the YA lead
+  if (refs.yaLeadEdges && refs.yaLeadEdges.length > 1) {
+    const fwd = refs.yaLeadEdges;
+    const route = [...fwd, ...[...fwd].reverse()];
+    trains.push({
+      id: "t-ya-switcher",
+      road: "SW",
+      number: "YA-02",
+      color: "#10b981",
+      length: 2,
+      position: { edgeId: fwd[0], offset: 0.2, direction: "forward" },
+      velocity: 35,
+      maxVelocity: 70,
+      route,
+      routeIndex: 0,
+      waiting: false,
+      paused: false,
+    });
+  }
+
   return trains;
 }
