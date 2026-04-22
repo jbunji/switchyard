@@ -67,6 +67,16 @@ export const TrainSchema = z.object({
 });
 export type Train = z.infer<typeof TrainSchema>;
 
+export const ZoneLabelSchema = z.object({
+  id: z.string(),
+  text: z.string(),
+  x: z.number(),
+  y: z.number(),
+  size: z.number().default(40),
+  opacity: z.number().default(0.25),
+});
+export type ZoneLabel = z.infer<typeof ZoneLabelSchema>;
+
 export const LayoutSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -74,6 +84,7 @@ export const LayoutSchema = z.object({
   edges: z.array(TrackEdgeSchema),
   blocks: z.array(BlockSchema),
   trains: z.array(TrainSchema),
+  labels: z.array(ZoneLabelSchema).default([]),
   updatedAt: z.string(),
 });
 export type Layout = z.infer<typeof LayoutSchema>;

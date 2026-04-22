@@ -284,6 +284,24 @@ export function TrackCanvas() {
       {!gridEnabled && <rect data-bg="true" width="100%" height="100%" fill="#09090b" />}
 
       <g transform={`translate(${viewport.x}, ${viewport.y}) scale(${viewport.scale})`}>
+        {layout.labels.map((label) => (
+          <text
+            key={label.id}
+            x={label.x}
+            y={label.y}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fontSize={label.size}
+            fontFamily="var(--font-geist-sans)"
+            fontWeight={800}
+            fill="#fafafa"
+            fillOpacity={label.opacity}
+            letterSpacing={label.size * 0.05}
+            style={{ pointerEvents: "none", userSelect: "none" }}
+          >
+            {label.text}
+          </text>
+        ))}
         {layout.edges.map((edge) => {
           const from = nodeMap.get(edge.from);
           const to = nodeMap.get(edge.to);

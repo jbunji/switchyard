@@ -148,6 +148,7 @@ export function emptyLayout(): Layout {
     edges: [],
     blocks: [block],
     trains: [],
+    labels: [],
     updatedAt: new Date().toISOString(),
   };
 }

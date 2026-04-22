@@ -55,6 +55,7 @@ export function demoLayout(): Layout {
     edges,
     blocks,
     trains,
+    labels: [],
     updatedAt: new Date().toISOString(),
   };
 }
