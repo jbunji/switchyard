@@ -564,25 +564,26 @@ export function generateCity(): Layout {
   );
 
   // Segment 8: bm → bmm  *** INDUSTRIAL DETOUR ***
+  // Spurs go SOUTH (toward outer main) so they don't cross the passenger zone.
   const industrial = buildDetour(g, {
     from: outerSeq[8],
     to: outerSeq[9],
     waypoints: [
-      { x: 1750, y: 1580 },
-      { x: 1550, y: 1540 },
-      { x: 1350, y: 1540 },
-      { x: 1200, y: 1580 },
+      { x: 1750, y: 1620 },
+      { x: 1550, y: 1600 },
+      { x: 1350, y: 1600 },
+      { x: 1200, y: 1620 },
     ],
     mainBlock: outerBlockIds[8],
     detourBlock: bInd.id,
-    side: -1, // bulge north (interior)
+    side: -1,
     label: "IND",
     detourCurves: [30, -20, 0, -20, 30],
     spurAt: [
-      { index: 0, side: 1, length: 120, label: "IND-lumber" },
-      { index: 1, side: 1, length: 130, label: "IND-oil" },
-      { index: 2, side: 1, length: 130, label: "IND-grain" },
-      { index: 3, side: 1, length: 120, label: "IND-team" },
+      { index: 0, side: -1, length: 70, label: "IND-lumber" },
+      { index: 1, side: -1, length: 80, label: "IND-oil" },
+      { index: 2, side: -1, length: 80, label: "IND-grain" },
+      { index: 3, side: -1, length: 70, label: "IND-team" },
     ],
     tStart: 0.08,
     tEnd: 0.92,
@@ -763,6 +764,15 @@ export function generateCity(): Layout {
     mountainSidingEdges: [mountain.mainEdges[1].id],
     industrialSidingEdges: [industrial.mainEdges[1].id],
   });
+
+  // ---- Initial turnout states: pre-flip a few so the city has visible
+  // variety out of the box. Bryan sees trains actually use the zones.
+  const divergedByDefault = new Set(["MTN-W", "IND-W", "PAX-W"]);
+  for (const n of g.nodes) {
+    if (n.label && divergedByDefault.has(n.label)) {
+      n.state = "diverging";
+    }
+  }
 
   // ---- Zone labels ----
   const labels = [

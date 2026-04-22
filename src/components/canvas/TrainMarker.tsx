@@ -19,7 +19,8 @@ export function TrainMarker({ train, edges, nodes }: Props) {
 
   const geo = edgeGeometry(from, to, edge.curve);
   const sample = geo.sampleAt(train.position.offset);
-  const angle = (Math.atan2(sample.ty, sample.tx) * 180) / Math.PI;
+  const baseAngle = (Math.atan2(sample.ty, sample.tx) * 180) / Math.PI;
+  const angle = train.position.direction === "reverse" ? baseAngle + 180 : baseAngle;
 
   return (
     <g transform={`translate(${sample.x}, ${sample.y}) rotate(${angle})`}>
