@@ -17,6 +17,7 @@ export function Inspector() {
   const toggleTurnout = useLayoutStore((s) => s.toggleTurnout);
   const deleteSelection = useLayoutStore((s) => s.deleteSelection);
   const setTrainVelocity = useLayoutStore((s) => s.setTrainVelocity);
+  const setTrainPriority = useLayoutStore((s) => s.setTrainPriority);
   const toggleTrainPaused = useLayoutStore((s) => s.toggleTrainPaused);
 
   const selectedNode =
@@ -210,6 +211,21 @@ export function Inspector() {
                     />
                     <span className="text-[9px] font-mono text-zinc-500 w-8 text-right">
                       {Math.round(t.velocity)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 pl-5">
+                    <span className="text-[9px] font-mono text-zinc-500 w-8">pri</span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={10}
+                      step={1}
+                      value={t.priority ?? 5}
+                      onChange={(e) => setTrainPriority(t.id, Number(e.target.value))}
+                      className="flex-1 accent-sky-400"
+                    />
+                    <span className="text-[9px] font-mono text-zinc-500 w-8 text-right">
+                      {t.priority ?? 5}
                     </span>
                   </div>
                 </div>

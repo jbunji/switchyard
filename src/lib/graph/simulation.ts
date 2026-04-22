@@ -137,49 +137,74 @@ export function tickSimulation(layout: Layout, dt: number): SimStep {
     return len;
   };
 
-  // First pass: figure out who currently holds which block
-  const blockHolder = new Map<string, string>();
+  // First pass: figure out who currently holds which block.
+  // Higher priority wins when multiple trains share a block.
+  const blockHolder = new Map<string, { trainId: string; priority: number }>();
   for (const t of layout.trains) {
     if (!t.position) continue;
     const edge = edgeMap.get(t.position.edgeId);
     if (!edge) continue;
-    if (!blockHolder.has(edge.blockId)) {
-      blockHolder.set(edge.blockId, t.id);
+    const priority = t.priority ?? 5;
+    const existing = blockHolder.get(edge.blockId);
+    if (!existing || priority > existing.priority) {
+      blockHolder.set(edge.blockId, { trainId: t.id, priority });
     }
   }
 
-  const newTrains: Train[] = layout.trains.map((train) => {
-    if (!train.position) return train;
-    if (train.paused) return { ...train, waiting: false };
+  // Process higher-priority trains first so they claim contested blocks.
+  const orderedTrains = [...layout.trains].sort(
+    (a, b) => (b.priority ?? 5) - (a.priority ?? 5),
+  );
+
+  const trainUpdates = new Map<string, Train>();
+  for (const train of orderedTrains) {
+    if (!train.position) {
+      trainUpdates.set(train.id, train);
+      continue;
+    }
+    if (train.paused) {
+      trainUpdates.set(train.id, { ...train, waiting: false });
+      continue;
+    }
 
     const edge = edgeMap.get(train.position.edgeId);
-    if (!edge) return train;
+    if (!edge) {
+      trainUpdates.set(train.id, train);
+      continue;
+    }
 
     const len = edgeLenFor(edge);
-    if (len === 0) return train;
+    if (len === 0) {
+      trainUpdates.set(train.id, train);
+      continue;
+    }
 
     const dirSign = train.position.direction === "forward" ? 1 : -1;
     const newOffset = train.position.offset + (train.velocity * dt / len) * dirSign;
 
     if (newOffset < 1 && newOffset > 0) {
-      return {
+      trainUpdates.set(train.id, {
         ...train,
         waiting: false,
         position: { ...train.position, offset: newOffset },
-      };
+      });
+      continue;
     }
 
     const atEnd = newOffset >= 1;
     const exitNodeId = dirSign > 0 ? edge.to : edge.from;
     const exitNode = nodeMap.get(exitNodeId);
-    if (!exitNode) return train;
+    if (!exitNode) {
+      trainUpdates.set(train.id, train);
+      continue;
+    }
 
     const connected = edgesByNode.get(exitNodeId) ?? [];
     const nextEdge = pickNextEdge(edge, exitNode, connected, nodeMap);
 
     if (!nextEdge) {
       // Stub end — reverse
-      return {
+      trainUpdates.set(train.id, {
         ...train,
         waiting: false,
         position: {
@@ -187,13 +212,18 @@ export function tickSimulation(layout: Layout, dt: number): SimStep {
           offset: atEnd ? 0.999 : 0.001,
           direction: train.position.direction === "forward" ? "reverse" : "forward",
         },
-      };
+      });
+      continue;
     }
 
-    // Collision check: is next block held by another train?
+    // Collision check: is next block held by a different train?
+    // Priority rule: if the holder has lower priority than us AND we haven't
+    // already got dibs on the block, we can preempt (we process in priority
+    // order, so higher priority claims first).
     const holder = blockHolder.get(nextEdge.blockId);
-    if (holder && holder !== train.id) {
-      return {
+    const myPriority = train.priority ?? 5;
+    if (holder && holder.trainId !== train.id && holder.priority >= myPriority) {
+      trainUpdates.set(train.id, {
         ...train,
         waiting: true,
         position: {
@@ -201,16 +231,17 @@ export function tickSimulation(layout: Layout, dt: number): SimStep {
           offset: atEnd ? 0.999 : 0.001,
           direction: train.position.direction,
         },
-      };
+      });
+      continue;
     }
 
     // Determine direction on next edge
     const nextDir = nextEdge.from === exitNodeId ? "forward" : "reverse";
     const startOffset = nextDir === "forward" ? 0 : 1;
 
-    blockHolder.set(nextEdge.blockId, train.id);
+    blockHolder.set(nextEdge.blockId, { trainId: train.id, priority: myPriority });
 
-    return {
+    trainUpdates.set(train.id, {
       ...train,
       waiting: false,
       position: {
@@ -218,8 +249,11 @@ export function tickSimulation(layout: Layout, dt: number): SimStep {
         offset: startOffset,
         direction: nextDir,
       },
-    };
-  });
+    });
+  }
+
+  // Re-assemble in original order so stable iteration for external consumers
+  const newTrains: Train[] = layout.trains.map((t) => trainUpdates.get(t.id) ?? t);
 
   const blocksOccupied = new Set<string>();
   for (const t of newTrains) {

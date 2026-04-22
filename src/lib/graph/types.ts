@@ -64,6 +64,7 @@ export const TrainSchema = z.object({
   routeIndex: z.number().default(0),
   waiting: z.boolean().default(false),
   paused: z.boolean().default(false),
+  priority: z.number().default(5),
 });
 export type Train = z.infer<typeof TrainSchema>;
 

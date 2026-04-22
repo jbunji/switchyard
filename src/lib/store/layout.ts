@@ -100,6 +100,7 @@ interface LayoutState {
   setSimSpeed: (v: number) => void;
   tickSim: (dt: number) => void;
   setTrainVelocity: (trainId: string, velocity: number) => void;
+  setTrainPriority: (trainId: string, priority: number) => void;
   toggleTrainPaused: (trainId: string) => void;
 }
 
@@ -396,6 +397,16 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         ...s.layout,
         trains: s.layout.trains.map((t) =>
           t.id === trainId ? { ...t, velocity } : t,
+        ),
+      },
+    })),
+
+  setTrainPriority: (trainId, priority) =>
+    set((s) => ({
+      layout: {
+        ...s.layout,
+        trains: s.layout.trains.map((t) =>
+          t.id === trainId ? { ...t, priority: Math.max(0, Math.min(10, priority)) } : t,
         ),
       },
     })),

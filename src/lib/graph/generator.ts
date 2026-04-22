@@ -838,6 +838,7 @@ function seedTrains(
     id: "t-up", road: "UP", number: "4014", color: "#f59e0b",
     velocity: 55, maxVelocity: 100,
     route: outer, routeIndex: 0, offset: 0.15,
+    priority: 5,
   }));
 
   // Fast passenger — outer with mountain detour
@@ -845,6 +846,7 @@ function seedTrains(
     id: "t-bnsf", road: "BNSF", number: "4429", color: "#fb923c",
     velocity: 75, maxVelocity: 120,
     route: mountainVariant, routeIndex: Math.floor(mountainVariant.length * 0.35), offset: 0.3,
+    priority: 6,
   }));
 
   // Limited — outer with industrial detour
@@ -852,20 +854,20 @@ function seedTrains(
     id: "t-ns", road: "NS", number: "8102", color: "#22c55e",
     velocity: 60, maxVelocity: 100,
     route: industrialVariant, routeIndex: Math.floor(industrialVariant.length * 0.6), offset: 0.1,
+    priority: 5,
   }));
 
-  // Commuter — inner main only
+  // Commuter — inner main only (passenger gets highest priority)
   if (inner.length > 1) {
     trains.push(makeTrain({
       id: "t-amtk", road: "AMTK", number: "156", color: "#60a5fa",
       velocity: 65, maxVelocity: 110,
       route: inner, routeIndex: 0, offset: 0.2,
+      priority: 9,
     }));
   }
 
   // Industrial local — continuous loop around the city via the industrial detour.
-  // (Was a back-and-forth switcher, but a through-branch shouldn't reverse —
-  //  a local freight circles the full main taking the industrial path each lap.)
   if (industrialVariant.length > 1) {
     trains.push(makeTrain({
       id: "t-ind-local", road: "LOC", number: "IND-01", color: "#a855f7",
@@ -873,16 +875,18 @@ function seedTrains(
       route: industrialVariant,
       routeIndex: Math.floor(industrialVariant.length * 0.15),
       offset: 0.2,
+      priority: 4,
     }));
   }
 
-  // Yard switcher — back-and-forth on YA lead
+  // Yard switcher — back-and-forth on YA lead (lowest priority, yields to everybody)
   if (refs.yaLeadEdges.length > 1) {
     const fwd = refs.yaLeadEdges;
     trains.push(makeTrain({
       id: "t-ya-switcher", road: "SW", number: "YA-02", color: "#10b981",
       velocity: 30, maxVelocity: 70,
       route: [...fwd, ...[...fwd].reverse()], routeIndex: 0, offset: 0.2,
+      priority: 2,
     }));
   }
 
@@ -893,6 +897,7 @@ function seedTrains(
       id: "t-et-switcher", road: "SW", number: "ET-03", color: "#eab308",
       velocity: 25, maxVelocity: 60,
       route: [...fwd, ...[...fwd].reverse()], routeIndex: 0, offset: 0.2,
+      priority: 2,
     }));
   }
 
@@ -927,6 +932,7 @@ interface TrainSeed {
   route: string[];
   routeIndex: number;
   offset: number;
+  priority?: number;
 }
 
 function makeTrain(s: TrainSeed): Train {
@@ -944,5 +950,6 @@ function makeTrain(s: TrainSeed): Train {
     routeIndex: s.routeIndex,
     waiting: false,
     paused: false,
+    priority: s.priority ?? 5,
   };
 }

@@ -45,6 +45,7 @@ export function demoLayout(): Layout {
       routeIndex: 0,
       waiting: false,
       paused: false,
+      priority: 5,
     },
   ];
 
